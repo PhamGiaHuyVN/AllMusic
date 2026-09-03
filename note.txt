@@ -1,0 +1,10 @@
+docker compose down -v
+docker compose up -d
+
+npm init -y
+npm install mongoose redis express
+app.js
+
+npm install -D nodemon
+
+npm install cors

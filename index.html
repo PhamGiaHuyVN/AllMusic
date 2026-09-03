@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Spotify Mini - Playlist Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; background-color: #121212; color: #fff; }
+    h1, h2 { color: #1db954; }
+    .card { background: #181818; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #282828; }
+    input { width: 95%; padding: 10px; margin: 8px 0; border-radius: 4px; border: 1px solid #333; background: #282828; color: #fff; }
+    button { background: #1db954; color: #000; font-weight: bold; padding: 10px 15px; border: none; border-radius: 20px; cursor: pointer; }
+    button:hover { background: #1ed760; }
+    .playlist-item { background: #282828; padding: 10px; margin-top: 10px; border-radius: 4px; }
+    .tag { background: #333; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+  <h1>🎵 Music App Dashboard</h1>
+
+  <!-- FORM TẠO PLAYLIST -->
+  <div class="card">
+    <h2>Tạo Playlist Mới</h2>
+    <input type="text" id="title" placeholder="Tên Playlist (VD: Nhạc Nhẹ Chill)">
+    <input type="text" id="userId" placeholder="User ID (VD: user_123)">
+    <input type="text" id="tracks" placeholder="Danh sách bài hát, cách nhau bởi dấu phẩy (VD: track_01, track_02)">
+    <button onclick="createPlaylist()">Tạo Playlist</button>
+  </div>
+
+  <!-- TÌM VÀ XEM PLAYLIST -->
+  <div class="card">
+    <h2>Xem Chi Tiết Playlist</h2>
+    <input type="text" id="searchId" placeholder="Nhập Playlist ID">
+    <button onclick="getPlaylist()">Tìm kiếm</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:3000/api/playlists';
+
+    // 1. Hàm tạo Playlist mới
+    async function createPlaylist() {
+      const title = document.getElementById('title').value;
+      const userId = document.getElementById('userId').value;
+      const tracksInput = document.getElementById('tracks').value;
+      const tracks = tracksInput.split(',').map(t => t.trim());
+
+      if (!title || !userId) return alert('Vui lòng nhập tên playlist và userId!');
+
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, userId, tracks })
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert('🎉 Tạo playlist thành công! ID của bạn: ' + result.data._id);
+        document.getElementById('searchId').value = result.data._id;
+        getPlaylist();
+      } else {
+        alert('Lỗi: ' + result.message);
+      }
+    }
+
+    // 2. Hàm lấy chi tiết Playlist
+    async function getPlaylist() {
+      const id = document.getElementById('searchId').value.trim();
+      const resultDiv = document.getElementById('result');
+
+      if (!id) return alert('Vui lòng nhập Playlist ID!');
+
+      resultDiv.innerHTML = 'Đang tải dữ liệu...';
+
+      const response = await fetch(`${API_URL}/${id}`);
+      const result = await response.json();
+
+      if (result.success) {
+        const data = result.data;
+        const sourceBadge = result.source === 'cache' 
+          ? '<span class="tag" style="background:#007bff">⚡ Redis Cache</span>' 
+          : '<span class="tag" style="background:#ffc107; color:#000">🐢 MongoDB</span>';
+
+        resultDiv.innerHTML = `
+          <div class="playlist-item">
+            <h3>${data.title} ${sourceBadge}</h3>
+            <p><b>ID:</b> ${data._id}</p>
+            <p><b>Người tạo:</b> ${data.userId}</p>
+            <p><b>Danh sách bài hát:</b> ${data.tracks.join(', ')}</p>
+          </div>
+        `;
+      } else {
+        resultDiv.innerHTML = `<p style="color:red">❌ ${result.message}</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
