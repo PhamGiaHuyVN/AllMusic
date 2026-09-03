@@ -1,98 +1,78 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <title>Spotify Mini - Playlist Manager</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 20px; background-color: #121212; color: #fff; }
-    h1, h2 { color: #1db954; }
-    .card { background: #181818; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #282828; }
-    input { width: 95%; padding: 10px; margin: 8px 0; border-radius: 4px; border: 1px solid #333; background: #282828; color: #fff; }
-    button { background: #1db954; color: #000; font-weight: bold; padding: 10px 15px; border: none; border-radius: 20px; cursor: pointer; }
-    button:hover { background: #1ed760; }
-    .playlist-item { background: #282828; padding: 10px; margin-top: 10px; border-radius: 4px; }
-    .tag { background: #333; padding: 3px 8px; border-radius: 12px; font-size: 12px; margin-right: 5px; }
-  </style>
-</head>
-<body>
+<!-- FORM UPLOAD BÀI HÁT -->
+<div class="card">
+  <h2>Tải Lên Bài Hát Mới</h2>
+  <input type="text" id="trackTitle" placeholder="Tên bài hát">
+  <input type="text" id="trackArtist" placeholder="Nghệ sĩ">
+  <input type="file" id="audioFile" accept="audio/*">
+  <button type="button" onclick="uploadTrack(event)">Upload Bài Hát</button>
+</div>
 
-  <h1>🎵 Music App Dashboard</h1>
+<!-- PLAYER PHÁT NHẠC -->
+<div class="card">
+  <h2>Trình Phát Nhạc</h2>
+  <div id="trackList">Chưa có bài hát nào</div>
+  <br>
+  <audio id="audioPlayer" controls style="width: 100%; margin-top: 10px;"></audio>
+</div>
 
-  <!-- FORM TẠO PLAYLIST -->
-  <div class="card">
-    <h2>Tạo Playlist Mới</h2>
-    <input type="text" id="title" placeholder="Tên Playlist (VD: Nhạc Nhẹ Chill)">
-    <input type="text" id="userId" placeholder="User ID (VD: user_123)">
-    <input type="text" id="tracks" placeholder="Danh sách bài hát, cách nhau bởi dấu phẩy (VD: track_01, track_02)">
-    <button onclick="createPlaylist()">Tạo Playlist</button>
-  </div>
+<script>
+  // Hàm Upload File lên Server
+  async function uploadTrack(event) {
+  if (event) event.preventDefault(); // Ngăn trình duyệt reload trang
 
-  <!-- TÌM VÀ XEM PLAYLIST -->
-  <div class="card">
-    <h2>Xem Chi Tiết Playlist</h2>
-    <input type="text" id="searchId" placeholder="Nhập Playlist ID">
-    <button onclick="getPlaylist()">Tìm kiếm</button>
-    <div id="result"></div>
-  </div>
+  const title = document.getElementById('trackTitle').value;
+  const artist = document.getElementById('trackArtist').value;
+  const fileInput = document.getElementById('audioFile');
 
-  <script>
-    const API_URL = 'http://localhost:3000/api/playlists';
+  if (!fileInput.files[0] || !title) return alert('Vui lòng điền đủ thông tin!');
 
-    // 1. Hàm tạo Playlist mới
-    async function createPlaylist() {
-      const title = document.getElementById('title').value;
-      const userId = document.getElementById('userId').value;
-      const tracksInput = document.getElementById('tracks').value;
-      const tracks = tracksInput.split(',').map(t => t.trim());
+  const formData = new FormData();
+  formData.append('title', title);
+  formData.append('artist', artist);
+  formData.append('audio', fileInput.files[0]);
 
-      if (!title || !userId) return alert('Vui lòng nhập tên playlist và userId!');
+  try {
+    const res = await fetch('http://localhost:3000/api/tracks/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const result = await res.json();
 
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, userId, tracks })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        alert('🎉 Tạo playlist thành công! ID của bạn: ' + result.data._id);
-        document.getElementById('searchId').value = result.data._id;
-        getPlaylist();
-      } else {
-        alert('Lỗi: ' + result.message);
-      }
+    if (result.success) {
+      alert('🎉 Upload bài hát thành công!');
+      loadTracks();
+    } else {
+      alert('Lỗi: ' + result.message);
     }
+  } catch (err) {
+    console.error('Lỗi khi gửi request:', err);
+  }
+}
 
-    // 2. Hàm lấy chi tiết Playlist
-    async function getPlaylist() {
-      const id = document.getElementById('searchId').value.trim();
-      const resultDiv = document.getElementById('result');
+  // Hàm Lấy danh sách bài hát và phát
+  async function loadTracks() {
+    const res = await fetch('http://localhost:3000/api/tracks');
+    const result = await res.json();
+    const listDiv = document.getElementById('trackList');
 
-      if (!id) return alert('Vui lòng nhập Playlist ID!');
-
-      resultDiv.innerHTML = 'Đang tải dữ liệu...';
-
-      const response = await fetch(`${API_URL}/${id}`);
-      const result = await response.json();
-
-      if (result.success) {
-        const data = result.data;
-        const sourceBadge = result.source === 'cache' 
-          ? '<span class="tag" style="background:#007bff">⚡ Redis Cache</span>' 
-          : '<span class="tag" style="background:#ffc107; color:#000">🐢 MongoDB</span>';
-
-        resultDiv.innerHTML = `
-          <div class="playlist-item">
-            <h3>${data.title} ${sourceBadge}</h3>
-            <p><b>ID:</b> ${data._id}</p>
-            <p><b>Người tạo:</b> ${data.userId}</p>
-            <p><b>Danh sách bài hát:</b> ${data.tracks.join(', ')}</p>
+    if (result.success && result.data.length > 0) {
+      listDiv.innerHTML = result.data.map(track => `
+        <div class="playlist-item" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <b>${track.title}</b> - ${track.artist}
           </div>
-        `;
-      } else {
-        resultDiv.innerHTML = `<p style="color:red">❌ ${result.message}</p>`;
-      }
+          <button onclick="playAudio('${track.audioUrl}')">▶ Play</button>
+        </div>
+      `).join('');
     }
-  </script>
-</body>
-</html>
+  }
+
+  function playAudio(url) {
+    const player = document.getElementById('audioPlayer');
+    player.src = url;
+    player.play();
+  }
+
+  // Tự động tải danh sách khi mở trang
+  loadTracks();
+</script>

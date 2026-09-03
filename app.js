@@ -1,108 +1,84 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const { createClient } = require('redis');
+const cors = require('cors');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const Track = require('./models/track');
+
 
 const app = express();
-app.use(express.json()); // Đọc dữ liệu JSON gửi lên từ client
-
-const cors = require('cors');
 app.use(cors());
 app.use(express.static(__dirname)); //dung de mo web tren local host
 
+// Tăng dung lượng nhận payload cho Express
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Cấu hình Multer với giới hạn file size 50MB
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+});
+
 // Cấu hình kết nối
-const MONGO_URI = 'mongodb://root:root@localhost:27017/music_db?authSource=admin';
-const REDIS_URI = 'redis://localhost:6379';
+const MONGO_URI = process.env.MONGO_URI;
 
-// Khởi tạo Redis Client
-const redisClient = createClient({ url: REDIS_URI });
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
-
-// Schema MongoDB
-const PlaylistSchema = new mongoose.Schema({
-  title: String,
-  userId: String,
-  tracks: [String],
-  createdAt: { type: Date, default: Date.now }
+// Cấu hình Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
-const Playlist = mongoose.model('Playlist', PlaylistSchema);
 
-// --- CÁC ROUTE API ---
-
-// 1. API Tạo Playlist mới (POST)
-app.post('/api/playlists', async (req, res) => {
-  try {
-    // const { title, userId, tracks } = req.body;
-    // const newPlaylist = await Playlist.create({ title, userId, tracks });
-    // res.status(201).json({ success: true, data: newPlaylist });
-
-    const { trackId } = req.body;
-    const playlist = await Playlist.findByIdAndUpdate(
-        req.params.id,
-        { $addToSet: { tracks: trackId } }, //them track vao mang
-        { new: true }
-    );
-
-    await redisClient.del(`playlist:${req.params.id}`);
-
-    res.json({ success: true, data: playlist });
-
-  } 
-  catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+// Cấu hình Nơi lưu file Upload
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'music_app_tracks',
+    resource_type: 'video', // Cloudinary quản lý file audio dưới dạng 'video'
+    allowed_formats: ['mp3', 'wav', 'aac']
   }
 });
 
-// 2. API Lấy thông tin Playlist theo ID (GET) - Có dùng Redis Cache
-app.get('/api/playlists/:id', async (req, res) => {
-  try {
-    const playlistId = req.params.id;
-    const cacheKey = `playlist:${playlistId}`;
+const upload = multer({ storage: storage });
 
-    // Kiểm tra xem dữ liệu có sẵn trong Redis Cache không
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      console.log('⚡ [CACHE HIT] Lấy dữ liệu từ Redis');
-      return res.json({ success: true, source: 'cache', data: JSON.parse(cachedData) });
+// --- API UPLOAD BÀI HÁT ---
+app.post('/api/tracks/upload', (req, res) => {
+  upload.single('audio')(req, res, async (err) => {
+    if (err) {
+      console.error('❌ Lỗi Upload Cloudinary:', err);
+      return res.status(500).json({ success: false, message: err.message });
     }
+    try {
+      const { title, artist } = req.body;
+      if (!req.file) return res.status(400).json({ success: false, message: 'Chưa chọn file!' });
 
-    // Nếu không có trong Cache -> Tìm trong MongoDB
-    console.log('🐢 [CACHE MISS] Đang truy vấn từ MongoDB...');
-    const playlist = await Playlist.findById(playlistId);
+      const newTrack = await Track.create({
+        title,
+        artist,
+        audioUrl: req.file.path
+      });
 
-    if (!playlist) {
-      return res.status(404).json({ success: false, message: 'Không tìm thấy playlist' });
+      res.status(201).json({ success: true, data: newTrack });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
     }
-
-    // Lưu vào Redis Cache trong 60 giây cho các lần gọi sau
-    await redisClient.setEx(cacheKey, 60, JSON.stringify(playlist));
-
-    res.json({ success: true, source: 'database', data: playlist });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  });
 });
 
-app.delete('/api/playlists/:id', async (req, res) => {
+app.get('/api/tracks', async (req, res) => {
   try {
-    await Playlist.findByIdAndDelete(req.params.id);
-    await redisClient.del(`playlist:${req.params.id}`); // Xóa cache
-    res.json({ success: true, message: 'Đã xóa playlist' });
+    const tracks = await Track.find().sort({ createdAt: -1 });
+    res.json({ success: true, data: tracks });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 // Khởi động Server
-async function startServer() {
-  await mongoose.connect(MONGO_URI);
-  console.log('✅ Đã kết nối MongoDB');
-
-  await redisClient.connect();
-  console.log('✅ Đã kết nối Redis');
-
-  app.listen(3000, () => {
-    console.log('🚀 Server Backend đang chạy tại port http://localhost:3000');
+mongoose.connect(MONGO_URI)
+  .then(()=> {
+    app.listen(3000, () => console.log('🚀 Server Backend đang chạy tại port http://localhost:3000'))
   });
-}
-
-startServer();
