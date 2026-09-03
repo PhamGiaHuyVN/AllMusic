@@ -1,0 +1,24 @@
+# 1. Ẩn các file chứa thông tin bí mật / API Keys
+.env
+.env.*
+!.env.example
+
+# 2. Ẩn thư mục thư viện Node.js
+node_modules/
+
+# 3. Ẩn các file log & debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 4. Ẩn dữ liệu upload tạm / file hệ thống
+uploads/
+.DS_Store
+Thumbs.db
+
+# 5. Ẩn cấu hình riêng của Editor/IDE
+.vscode/
+.idea/
+
+note.txt
