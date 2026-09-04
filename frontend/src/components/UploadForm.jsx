@@ -21,7 +21,7 @@ function UploadForm({ onUploadSuccess }) {
 
     try {
       setIsUploading(true);
-      const res = await fetch('http://localhost:3000/api/tracks/upload', {
+      const res = await fetch('https://allmusic-6k3l.onrender.com/api/tracks/upload', {
         method: 'POST',
         body: formData,
         signal: AbortSignal.timeout(30000) // Timeout 30s

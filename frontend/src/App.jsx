@@ -12,7 +12,7 @@ function MusicApp() {
   // Gọi API tải danh sách bài hát
   const loadTracks = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/tracks');
+      const res = await fetch('https://allmusic-6k3l.onrender.com/api/tracks');
       const data = await res.json();
       if (data.success) {
         setTracks(data.data);
