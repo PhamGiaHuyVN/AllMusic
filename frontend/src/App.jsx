@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
 import UploadForm from './components/UploadForm';
 import TrackList from './components/TrackList';
+import AuthModal from './components/AuthModal'; // Đảm bảo đúng đường dẫn tới file AuthModal của bạn
 
 function MusicApp() {
   const [user, setUser] = useState(null);
