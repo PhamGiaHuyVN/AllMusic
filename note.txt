@@ -8,3 +8,10 @@ app.js
 npm install -D nodemon
 
 npm install cors
+
+
+
+
+
+
+npm install @tailwindcss/vite
