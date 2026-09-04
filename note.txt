@@ -15,3 +15,6 @@ npm install cors
 
 
 npm install @tailwindcss/vite
+
+
+npm install jsonwebtoken bcryptjs

@@ -1,20 +1,18 @@
 import React from 'react';
 
-function Navbar() {
+function Navbar({ user, onOpenAuth, onLogout }) {
   return (
-    <nav style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '12px 24px',
-      backgroundColor: '#1e1e2f',
-      color: '#fff',
-      marginBottom: '24px'
-    }}>
-      <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🎵 Music App</div>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <a href="#home" style={{ color: '#fff', textDecoration: 'none' }}>Trang chủ</a>
-        <a href="#playlist" style={{ color: '#fff', textDecoration: 'none' }}>Playlist</a>
+    <nav className="flex justify-between items-center p-4 bg-slate-900 text-white mb-6">
+      <div className="text-xl font-bold">🎵 Music App</div>
+      <div>
+        {user ? (
+          <div className="flex items-center gap-4">
+            <span>Xin chào, <b>{user.username}</b></span>
+            <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-sm">Đăng xuất</button>
+          </div>
+        ) : (
+          <button onClick={onOpenAuth} className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded font-medium">Đăng Nhập</button>
+        )}
       </div>
     </nav>
   );

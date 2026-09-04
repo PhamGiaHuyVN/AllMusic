@@ -21,8 +21,15 @@ function UploadForm({ onUploadSuccess }) {
 
     try {
       setIsUploading(true);
+
+      // 1. LẤY TOKEN TỪ LOCALSTORAGE
+      const token = localStorage.getItem('token');
+
       const res = await fetch('https://allmusic-6k3l.onrender.com/api/tracks/upload', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}` // Gửi token lên backend để qua middleware auth.js
+        },
         body: formData,
         signal: AbortSignal.timeout(30000) // Timeout 30s
       });

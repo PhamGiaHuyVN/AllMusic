@@ -5,61 +5,43 @@ import UploadForm from './components/UploadForm';
 import TrackList from './components/TrackList';
 
 function MusicApp() {
-  const [tracks, setTracks] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const audioPlayerRef = useRef(null);
+  const [user, setUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Gọi API tải danh sách bài hát
-  const loadTracks = async () => {
-    try {
-      const res = await fetch('https://allmusic-6k3l.onrender.com/api/tracks');
-      const data = await res.json();
-      if (data.success) {
-        setTracks(data.data);
-      }
-    } catch (err) {
-      console.error('Lỗi tải danh sách bài hát:', err);
-    }
-  };
-
+  // Tự động khôi phục phiên đăng nhập từ localStorage
   useEffect(() => {
-    loadTracks();
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
-  // Lọc bài hát theo từ khóa
-  const filteredTracks = tracks.filter(
-    (track) =>
-      track.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      track.artist.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handlePlayAudio = (url) => {
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.src = url;
-      audioPlayerRef.current.play();
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-10">
-      <Navbar />
+    <div>
+      <Navbar 
+        user={user} 
+        onOpenAuth={() => setIsAuthOpen(true)} 
+        onLogout={handleLogout} 
+      />
 
-      <main className="max-w-4xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Cột trái: Form Upload */}
-        <div>
-          <UploadForm onUploadSuccess={loadTracks} />
-        </div>
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        onLoginSuccess={(userData) => setUser(userData)} 
+      />
 
-        {/* Cột phải: Tìm kiếm & Danh sách bài hát */}
-        <div className="space-y-4">
-          <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-          <TrackList
-            tracks={filteredTracks}
-            handlePlayAudio={handlePlayAudio}
-            audioPlayerRef={audioPlayerRef}
-          />
+      {/* Dùng điều kiện kiểm tra người dùng đã đăng nhập chưa để hiển thị Upload form */}
+      {user ? (
+        <UploadForm onUploadSuccess={loadTracks} />
+      ) : (
+        <div className="p-4 bg-yellow-50 text-yellow-800 border rounded-lg text-center">
+          Vui lòng <b>Đăng nhập</b> để thực hiện Tải Lên bài hát mới.
         </div>
-      </main>
+      )}
     </div>
   );
 }

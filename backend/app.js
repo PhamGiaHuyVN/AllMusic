@@ -6,6 +6,12 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const Track = require('./models/track');
 
+//token & middleware
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('./models/User');
+const authMiddleware = require('./middleware/auth')
+
 const app = express();
 app.use(cors());
 
@@ -25,42 +31,69 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }
 });
 
-// --- API UPLOAD BÀI HÁT ---
-app.post('/api/tracks/upload', upload.single('audio'), async (req, res) => {
+// --- 1. API ĐĂNG KÝ (REGISTER) ---
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const { title, artist } = req.body;
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: 'Chưa chọn file!' });
+    const { username, email, password } = req.body;
+    
+    // Kiểm tra xem user đã tồn tại chưa
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+    if (existingUser) {
+      return res.status(400).json({ success: false, message: 'Username hoặc Email đã tồn tại' });
     }
 
-    // Upload file trực tiếp lên Cloudinary bằng Stream
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'music_app_tracks',
-        resource_type: 'video', // Cloudinary quản lý file audio dưới dạng 'video'
-      },
-      async (error, result) => {
-        if (error) {
-          console.error('❌ Lỗi Upload Cloudinary:', error);
-          return res.status(500).json({ success: false, message: error.message });
-        }
+    // Mã hóa mật khẩu
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await User.create({ username, email, password: hashedPassword });
 
-        // Tạo document mới trong MongoDB
-        const newTrack = await Track.create({
-          title,
-          artist,
-          audioUrl: result.secure_url
-        });
+    res.status(201).json({ success: true, message: 'Đăng ký tài khoản thành công!' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
-        res.status(201).json({ success: true, data: newTrack });
-      }
+// --- 2. API ĐĂNG NHẬP (LOGIN) ---
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(400).json({ success: false, message: 'Email hoặc mật khẩu không đúng' });
+    }
+
+    // Tạo JWT Token có thời hạn 7 ngày
+    const token = jwt.sign(
+      { id: user._id, role: user.role, username: user.username },
+      process.env.JWT_SECRET || 'supersecretkey',
+      { expiresIn: '7d' }
     );
 
-    // Gửi buffer từ Multer sang Cloudinary stream
-    uploadStream.end(req.file.buffer);
+    res.json({
+      success: true,
+      token,
+      user: { id: user._id, username: user.username, role: user.role }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+// --- 3. BẢO VỆ ROUTE UPLOAD BÀI HÁT (Yêu cầu phải Đăng nhập) ---
+// Thêm authMiddleware vào giữa đường dẫn và hàm xử lý
+app.post('/api/tracks/upload', authMiddleware, upload.single('audio'), async (req, res) => {
+  // Chỉ khi gửi kèm Token hợp lệ thì code mới chạy vào đây
+  try {
+    const { title, artist } = req.body;
+    const newTrack = await Track.create({
+      title,
+      artist,
+      audioUrl: req.file.path,
+      uploadedBy: req.user.id // Lưu ID của người đăng nhạc
+    });
+    res.status(201).json({ success: true, data: newTrack });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -74,10 +107,12 @@ app.get('/api/tracks', async (req, res) => {
   }
 });
 
-// Khởi động Server
-const MONGO_URI = process.env.MONGO_URI;
+// Kết nối MongoDB qua biến môi trường
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/music';
 mongoose.connect(MONGO_URI)
-  .then(() => {
-    app.listen(3000, () => console.log('🚀 Server Backend đang chạy tại http://localhost:3000'));
-  })
-  .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err));
+  .then(() => console.log('MongoDB Connected!'))
+  .catch(err => console.error('MongoDB Connection Error:', err));
+
+// Lắng nghe cổng mà Render cấp
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
