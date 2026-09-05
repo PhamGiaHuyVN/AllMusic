@@ -17,7 +17,7 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     const payload = isLogin ? { email, password } : { username, email, password };
 
     try {
-      const res = await fetch(`http://localhost:3000${endpoint}`, {
+      const res = await fetch(`https://allmusic-6k3l.onrender.com${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
