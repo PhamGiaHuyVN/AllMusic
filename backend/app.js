@@ -89,16 +89,40 @@ app.post('/api/auth/login', async (req, res) => {
 
 // --- 3. BẢO VỆ ROUTE UPLOAD BÀI HÁT (Yêu cầu phải Đăng nhập) ---
 // Thêm authMiddleware vào giữa đường dẫn và hàm xử lý
+// --- 3. BẢO VỆ ROUTE UPLOAD BÀI HÁT (Upload lên Cloudinary) ---
 app.post('/api/tracks/upload', authMiddleware, upload.single('audio'), async (req, res) => {
-  // Chỉ khi gửi kèm Token hợp lệ thì code mới chạy vào đây
   try {
     const { title, artist } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Chưa chọn file âm thanh để tải lên!' });
+    }
+
+    // Hàm stream đẩy file từ bộ nhớ tạm (Buffer) lên Cloudinary
+    const streamUpload = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { resource_type: 'video' }, // Lưu ý: Cloudinary phân loại file Audio là 'video'
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        stream.end(fileBuffer);
+      });
+    };
+
+    // Chờ Cloudinary upload xong và lấy URL an toàn (https)
+    const cloudinaryResult = await streamUpload(req.file.buffer);
+
+    // Lưu vào database với đường dẫn Cloudinary hợp lệ
     const newTrack = await Track.create({
       title,
       artist,
-      audioUrl: req.file.path,
-      uploadedBy: req.user.id // Lưu ID của người đăng nhạc
+      audioUrl: cloudinaryResult.secure_url,
+      uploadedBy: req.user.id
     });
+
     res.status(201).json({ success: true, data: newTrack });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

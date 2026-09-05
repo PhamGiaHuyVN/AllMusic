@@ -39,12 +39,23 @@ function MusicApp() {
   };
 
   const handlePlayAudio = (track) => {
-    setCurrentTrack(track); // Lưu thông tin bài hát để hiển thị ở Sidebar
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.src = track.audioUrl;
-      audioPlayerRef.current.play();
-    }
-  };
+  // Kiểm tra nếu bài hát không có URL thì dừng lại
+  if (!track || !track.audioUrl) {
+    console.warn('Bài hát này không có đường dẫn audio hợp lệ!');
+    return;
+  }
+
+  setCurrentTrack(track);
+
+  if (audioPlayerRef.current) {
+    audioPlayerRef.current.src = track.audioUrl;
+    
+    // Sử dụng catch để tránh crash ứng dụng khi browser chặn autoplay hoặc URL hỏng
+    audioPlayerRef.current.play().catch((err) => {
+      console.error('Lỗi khi phát audio:', err);
+    });
+  }
+};
 
   const filteredTracks = tracks.filter(
     (track) =>
