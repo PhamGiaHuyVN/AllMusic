@@ -6,6 +6,7 @@ const TrackSchema = new mongoose.Schema({
   audioUrl: { type: String, required: true }, // URL file mp3 trên Cloudinary
   duration: { type: Number }, // Thời lượng bài hát (giây)
   createdAt: { type: Date, default: Date.now }
+  uploadedBy: { type: mongoose.Schema.Types.ObjectID, ref: 'User' }
 });
 
 module.exports = mongoose.model('Track', TrackSchema);
