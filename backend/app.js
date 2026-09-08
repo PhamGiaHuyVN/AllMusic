@@ -94,7 +94,7 @@ app.post('/api/auth/login', async (req, res) => {
       token,
       user: { id: user._id, username: user.username, role: user.role }
     });
-  } c
+  } 
   catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
