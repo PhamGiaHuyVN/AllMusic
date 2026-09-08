@@ -31,7 +31,7 @@ function UploadForm({ onUploadSuccess }) {
           'Authorization': `Bearer ${token}` // Gửi token lên backend để qua middleware auth.js
         },
         body: formData,
-        signal: AbortSignal.timeout(120000) // Timeout 30s
+        signal: AbortSignal.timeout(12000) // Timeout 12s
       });
 
       const result = await res.json();

@@ -10,7 +10,7 @@ const Track = require('./models/track');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('./models/User');
-const authMiddleware = require('./middleware/auth')
+const authMiddleware = require('./middleware/auth');
 
 const app = express();
 app.use(cors());
@@ -43,17 +43,18 @@ const upload = multer({
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    
-    // Kiểm tra xem user đã tồn tại chưa
-    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
 
     if (existingUser) return res.status(400).json({ success: false, message: 'Username hoặc Email đã tồn tại' });
     if(!username) return res.status(400).json({ success: false, message: 'Thieu Username' });
     if(!email) return res.status(400).json({ success: false, message: 'Thieu Email' });
     if(!password) return res.status(400).json({ success: false, message: 'Thieu Password' });
+
+    // Kiểm tra xem user đã tồn tại chưa
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+
     // Mã hóa mật khẩu
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, email, password: hashedPassword });
+    await User.create({ username, email, password: hashedPassword });
 
     res.status(201).json({ success: true, message: 'Đăng ký tài khoản thành công!' });
   } catch (err) {
@@ -63,16 +64,25 @@ app.post('/api/auth/register', async (req, res) => {
 
 // --- 2. API ĐĂNG NHẬP (LOGIN) ---
 app.post('/api/auth/login', async (req, res) => {
+  if(!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET is required');
+      process.exit(1);
+  }
+  
   try {
+
     const { email, password } = req.body;
     const user = await User.findOne({ email });
+
+    if(!email || !password) {
+      return res.status(400).json({ success: false, message: 'Thieu email hoac mat khau'});
+    }
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ success: false, message: 'Email hoặc mật khẩu không đúng' });
     }
 
     // Tạo JWT Token có thời hạn 7 ngày
-    if(!process.env.JWT_SECRET) throw new Error('JWT_SECRET is required')
     const token = jwt.sign(
       { id: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET,
@@ -84,7 +94,8 @@ app.post('/api/auth/login', async (req, res) => {
       token,
       user: { id: user._id, username: user.username, role: user.role }
     });
-  } catch (err) {
+  } c
+  catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -95,14 +106,31 @@ app.post('/api/tracks/upload', authMiddleware, upload.single('audio'), async (re
   // Chỉ khi gửi kèm Token hợp lệ thì code mới chạy vào đây
   try {
     const { title, artist } = req.body;
+    if(!title || !artist) {
+      return res.status(400).json({ success: false, message: 'Thieu title hoac artist '});
+    }
+    if(!req.file) {
+      return res.status(400).json({ success: false, message: 'Thieu file audio '});
+    }
+
+    const result = await new Promise((resolve, reject ) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'video', folder: 'music'},
+        (err, uploadResult) => (err ? reject(err) : resolve(uploadResult))
+      );
+      stream.end(req.file.buffer);
+    });
+
     const newTrack = await Track.create({
       title,
       artist,
-      audioUrl: req.file.path,
-      uploadedBy: req.user.id // Lưu ID của người đăng nhạc
+      audioUrl: result.secure_url,
+      uploadedBy: req.user.id
     });
+
     res.status(201).json({ success: true, data: newTrack });
-  } catch (err) {
+  } 
+  catch(err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });

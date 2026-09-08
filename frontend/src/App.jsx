@@ -27,7 +27,7 @@ function MusicApp() {
     }
   };
 
-  // Tự động khôi phục phiên đăng nhập[cite: 5]
+  // Tự động khôi phục phiên đăng nhập
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) setUser(JSON.parse(savedUser));
@@ -38,7 +38,7 @@ function MusicApp() {
     loadTracks();
   }, []);
 
-  // 4. Đăng xuất[cite: 5]
+  // 4. Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -54,10 +54,12 @@ function MusicApp() {
   
   // 6. Trình phát nhạc
   const handlePlayAudio = (url) => {
-    if (!url || !audioPlayerRef.current) return ;
+    if (!url || !audioPlayerRef.current) return;
 
     audioPlayerRef.current.src = url;
-    audioPlayerRef.current.play().catch(err) => console.error('Lỗi phát audio:', err));
+    audioPlayerRef.current.play().catch((err) => {
+      console.error('Lỗi phát audio:', err)
+    });
   };
 
   return (

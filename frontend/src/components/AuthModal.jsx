@@ -40,7 +40,9 @@ function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         alert('🎉 Đăng ký thành công! Hãy đăng nhập.');
         setIsLogin(true);
       }
-    } catch (err) {
+    } 
+    catch (err) {
+      console.error('Lỗi kết nối Server!', err);
       setError('Lỗi kết nối Server!');
     }
   };
