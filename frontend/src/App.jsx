@@ -1,69 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
-import UploadForm from './components/UploadForm';
-import TrackList from './components/TrackList';
 import AuthModal from './components/AuthModal';
+import BottomTab from './components/BottomTab';
+import AudioInput from './components/AudioInput';
+import TranscriptResult from './components/TranscriptResult';
+import HistoryList from './components/HistoryList';
+import { useTranscriber } from './hooks/useTranscriber';
+import { apiFetch } from './lib/api';
 
-function MusicApp() {
+function SpeechApp() {
   const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-
-  // 1. Thêm State lưu danh sách nhạc & từ khóa tìm kiếm
-  const [tracks, setTracks] = useState([]);
+  const [activeTab, setActiveTab] = useState('home');
+  const [transcripts, setTranscripts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const audioPlayerRef = useRef(null);
+  const [meta, setMeta] = useState({ sourceName: '', language: 'vietnamese', duration: null });
+  const { status, progress, result, error, transcribe } = useTranscriber();
 
-  // 2. KHAI BÁO HÀM loadTracks
-  const loadTracks = async () => {
+  const loadTranscripts = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setTranscripts([]);
+      return;
+    }
     try {
-      const res = await fetch('https://allmusic-6k3l.onrender.com/api/tracks');
-      const data = await res.json();
-      if (data.success) {
-        setTracks(data.data);
-      }
+      const { data } = await apiFetch('/api/transcripts');
+      if (data.success) setTranscripts(data.data);
     } catch (err) {
-      console.error('Lỗi tải danh sách bài hát:', err);
+      console.error('Lỗi tải lịch sử transcript:', err);
     }
   };
 
-  // Tự động khôi phục phiên đăng nhập
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
-  // 3. Tự động tải danh sách bài hát khi vừa mở ứng dụng
   useEffect(() => {
-    loadTracks();
-  }, []);
+    loadTranscripts();
+  }, [user]);
 
-  // 4. Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    setTranscripts([]);
   };
 
-  // 5. Lọc bài hát theo từ khóa
-  const filteredTracks = tracks.filter(
-    (track) =>
-      (track.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (track.artist || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // 6. Trình phát nhạc
-  const handlePlayAudio = (url) => {
-    if (!url || !audioPlayerRef.current) return;
-
-    audioPlayerRef.current.src = url;
-    audioPlayerRef.current.play().catch((err) => {
-      console.error('Lỗi phát audio:', err)
-    });
+  const handleAudioReady = ({ audio, duration, sourceName, language }) => {
+    setMeta({ sourceName, language, duration });
+    transcribe(audio, language);
   };
+
+  const filteredTranscripts = transcripts.filter((item) => {
+    const q = searchTerm.toLowerCase();
+    return (
+      (item.text || '').toLowerCase().includes(q) ||
+      (item.sourceName || '').toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <div className="min-h-screen bg-gray-100 pb-10">
+    <div className="min-h-screen bg-gray-100 pb-24">
       <Navbar
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
@@ -77,37 +76,44 @@ function MusicApp() {
       />
 
       <main className="max-w-4xl mx-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Cột trái: Form Upload */}
-        <div>
-          {user ? (
-            <UploadForm onUploadSuccess={loadTracks} /> // Giờ đây loadTracks đã hợp lệ
-          ) : (
-            <div className="p-6 bg-white rounded-xl shadow-md border border-gray-100 text-center">
-              <p className="text-gray-600 mb-3">
-                Vui lòng <b>Đăng nhập</b> để thực hiện Tải Lên bài hát mới.
-              </p>
-              <button
-                onClick={() => setIsAuthOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition"
-              >
-                Đăng Nhập Ngay
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Cột phải: Tìm kiếm & Danh sách nhạc */}
-        <div className="space-y-4">
-          <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
-          <TrackList
-            tracks={filteredTracks}
-            handlePlayAudio={handlePlayAudio}
-            audioPlayerRef={audioPlayerRef}
-          />
-        </div>
+        {activeTab === 'home' ? (
+          <>
+            <AudioInput
+              disabled={status === 'loading' || status === 'transcribing'}
+              onAudioReady={handleAudioReady}
+            />
+            <TranscriptResult
+              user={user}
+              status={status}
+              progress={progress}
+              result={result}
+              error={error}
+              sourceName={meta.sourceName}
+              language={meta.language}
+              duration={meta.duration}
+              onSaved={loadTranscripts}
+              onNeedLogin={() => setIsAuthOpen(true)}
+            />
+          </>
+        ) : (
+          <div className="md:col-span-2 space-y-4">
+            <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+            <HistoryList
+              user={user}
+              transcripts={filteredTranscripts}
+              onReload={loadTranscripts}
+              onOpenAuth={() => setIsAuthOpen(true)}
+            />
+          </div>
+        )}
       </main>
+
+      <BottomTab
+        activeTab={activeTab}
+        onChange={(tab) => setActiveTab(tab === 'plus' ? 'home' : tab)}
+      />
     </div>
   );
 }
 
-export default MusicApp;
+export default SpeechApp;
